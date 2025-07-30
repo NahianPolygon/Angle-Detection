@@ -1,0 +1,29 @@
+# Virtual environment
+venv/
+env/
+.venv/
+.env/
+
+# Corrected images folder
+corrected_images/
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Output directories (optional - uncomment if you want to ignore these too)
+# output_detected_angles/
