@@ -47,20 +47,42 @@ def detect_card_angle_fixed(image_path, output_dir="output_detected_angles"):
 
     print(f"{os.path.basename(image_path)} → Detected angle: {dominant_angle:.2f}°")
 
-    # Draw detected lines on image
+    # Draw only lines with the dominant orientation
     vis_img = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
+    angle_tolerance = 5  # degrees
+    majority_lines = []
     for line in lines:
         x1, y1, x2, y2 = line[0]
-        cv2.line(vis_img, (x1, y1), (x2, y2), (0, 255, 0), 1)
+        angle = get_line_angle(x1, y1, x2, y2)
+        norm_angle = angle if angle <= 90 else angle - 180  # normalize to [-90, 90]
+        if abs(norm_angle - dominant_angle) <= angle_tolerance:
+            cv2.line(vis_img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            majority_lines.append((x1, y1, x2, y2))
 
-    # Draw center and angle line
+    # Always define center_x, center_y for baseline and fallback
     center_x, center_y = width // 2, height // 2
-    length = min(width, height) // 2
-    rad = np.radians(dominant_angle)
-    end_x = int(center_x + length * np.cos(rad))
-    end_y = int(center_y - length * np.sin(rad))
-    cv2.line(vis_img, (center_x, center_y), (end_x, end_y), (0, 0, 255), 2)
-    cv2.putText(vis_img, f"Angle: {dominant_angle:.1f}°", (10, 30),
+    # Draw red line and calculate its angle with respect to the horizontal (blue) baseline
+    if majority_lines:
+        avg_x1 = int(np.mean([l[0] for l in majority_lines]))
+        avg_y1 = int(np.mean([l[1] for l in majority_lines]))
+        avg_x2 = int(np.mean([l[2] for l in majority_lines]))
+        avg_y2 = int(np.mean([l[3] for l in majority_lines]))
+        cv2.line(vis_img, (avg_x1, avg_y1), (avg_x2, avg_y2), (0, 0, 255), 2)
+        # Calculate angle between red and blue line
+        red_angle = get_line_angle(avg_x1, avg_y1, avg_x2, avg_y2)
+    else:
+        # fallback to center and angle if no majority lines
+        length = min(width, height) // 2
+        rad = np.radians(dominant_angle)
+        end_x = int(center_x + length * np.cos(rad))
+        end_y = int(center_y - length * np.sin(rad))
+        cv2.line(vis_img, (center_x, center_y), (end_x, end_y), (0, 0, 255), 2)
+        red_angle = get_line_angle(center_x, center_y, end_x, end_y)
+    # The blue line is always horizontal, so its angle is 0
+    angle_with_baseline = abs(red_angle)
+    # Draw baseline (horizontal line through center)
+    cv2.line(vis_img, (0, center_y), (width, center_y), (255, 0, 0), 2)
+    cv2.putText(vis_img, f"Angle: {angle_with_baseline:.1f}°", (10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
 
     # Save
@@ -69,7 +91,7 @@ def detect_card_angle_fixed(image_path, output_dir="output_detected_angles"):
     out_path = os.path.join(output_dir, f"{os.path.splitext(name)[0]}_angle.jpg")
     cv2.imwrite(out_path, vis_img)
 
-    return dominant_angle
+    return angle_with_baseline
 
 def process_folder_fixed(input_folder="images_new", output_folder="output_detected_angles"):
     image_extensions = (".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif")
